@@ -6,10 +6,8 @@ import (
 	"sync"
 )
 
-var MaxIndegree = 10
-
-type EvalFunc func(chan int) int
-
+// Node is a single computation step in a Graph.
+// To construct Nodes, use the NewNode function.
 type Node struct {
 	ID       string
 	Next     []*Node
@@ -20,6 +18,8 @@ type Node struct {
 	inputs   chan int
 }
 
+// NewNode returns a Node with the given ID and EvalFunc.
+// The Node's output will be sent to any Nodes provided as the "next" argument.
 func NewNode(id string, eval EvalFunc, next ...*Node) *Node {
 	for _, next := range next {
 		next.wait.Add(1)
@@ -34,10 +34,17 @@ func NewNode(id string, eval EvalFunc, next ...*Node) *Node {
 	}
 }
 
+// MaxIndegree sets the buffer size of the Inputs channel for Nodes.
+var MaxIndegree = 10
+
+// EvalFunc accepts a channel of zero or more numerical inputs and returns a single numerical output.
+type EvalFunc func(chan int) int
+
 // Graph is a directed acyclic graph of Nodes. Map keys are Node IDs.
 type Graph map[string]*Node
 
 // New constructs a Graph from the given Nodes.
+// Only head Nodes need to be passed to New; these Nodes will be traversed and connected to form the full Graph.
 // Each Node must have a unique ID.
 // If the Graph contains a cycle, ErrCycle is returned.
 // If one or more Nodes have no path to the rest of the Nodes, ErrDisconnected is returned.
@@ -156,6 +163,7 @@ func (g Graph) CheckConnectivity() error {
 	return nil
 }
 
+// Filter returns the Nodes in the graph that pass the given filter check.
 func (g Graph) Filter(filter func(*Node) bool) []*Node {
 	out := make([]*Node, 0)
 	for _, n := range g {
@@ -166,6 +174,7 @@ func (g Graph) Filter(filter func(*Node) bool) []*Node {
 	return out
 }
 
+// Roots returns the root Nodes of the Graph (Nodes with indegree of 0).
 func (g Graph) Roots() []*Node {
 	return g.Filter(func(n *Node) bool { return n.indegree == 0 })
 }

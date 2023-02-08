@@ -9,6 +9,8 @@ import (
 
 var ErrMinConcurrency = errors.New("concurrency must be at least 1")
 
+// Evaluate performs a parallel execution of the Graph with the number of workers equal to "concurrency".
+// Results can be read directly from each Node after evaluation via the Node.Result field.
 func (g Graph) Evaluate(concurrency int) error {
 	if concurrency < 1 {
 		return ErrMinConcurrency
@@ -37,7 +39,7 @@ func (g Graph) Evaluate(concurrency int) error {
 		go func(i int) {
 			for node := range queue {
 				log.Printf("worker %d: evaluating node %s", i, node.ID)
-				node.Evaluate()
+				node.evaluate()
 			}
 			wait.Done()
 		}(i)
@@ -48,27 +50,29 @@ func (g Graph) Evaluate(concurrency int) error {
 	return nil
 }
 
-func (n *Node) Evaluate() {
+func (n *Node) evaluate() {
 	n.wait.Wait()
 	close(n.inputs)
 	n.Result = n.eval(n.inputs)
 	log.Printf("evaluating node %s (%d inputs): result=%d", n.ID, n.indegree, n.Result)
 	for _, next := range n.Next {
-		next.Receive(n.Result)
+		next.receive(n.Result)
 	}
 }
 
-func (n *Node) Receive(input int) {
+func (n *Node) receive(input int) {
 	n.inputs <- input
 	n.wait.Done()
 }
 
+// Constant returns an EvalFunc that always returns the given integer.
 func Constant(n int) EvalFunc {
 	return func(_ chan int) int {
 		return n
 	}
 }
 
+// Max is an EvalFunc that returns the highest input or zero if there are no inputs.
 func Max(inputs chan int) (output int) {
 	for input := range inputs {
 		if input > output {
@@ -78,6 +82,7 @@ func Max(inputs chan int) (output int) {
 	return
 }
 
+// Min is an EvalFunc that returns the lowest input or zero if there are no inputs.
 func Min(inputs chan int) int {
 	output, ok := <-inputs
 	if !ok {
@@ -91,6 +96,7 @@ func Min(inputs chan int) int {
 	return output
 }
 
+// Sum is an EvalFunc that returns the sum of the inputs or zero if there are no inputs.
 func Sum(inputs chan int) (output int) {
 	for input := range inputs {
 		output += input
