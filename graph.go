@@ -75,9 +75,6 @@ func New(nodes ...*Node) (Graph, error) {
 	return g, nil
 }
 
-// ErrDuplicateNodeID is returned when a Graph contains more than one Node with the same NodeID.
-var ErrDuplicateNodeID = errors.New("duplicate node ID")
-
 // ErrCycle is returned when a cycle is detected in a Graph.
 var ErrCycle = errors.New("cycle detected")
 
