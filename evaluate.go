@@ -18,7 +18,7 @@ func (g Graph) Evaluate(concurrency int) error {
 		return fmt.Errorf("topological sort: %w", err)
 	}
 
-	log.Println("evaluation order:", nodeIDs(nodes))
+	log.Printf("evaluation started: concurrency=%d order=%v", concurrency, nodeIDs(nodes))
 
 	// Enqueue nodes in topological order.
 	queue := make(chan *Node)
@@ -34,12 +34,13 @@ func (g Graph) Evaluate(concurrency int) error {
 	// Launch concurrent workers to evaluate Nodes taken from the queue.
 	for i := 0; i < concurrency; i++ {
 		wait.Add(1)
-		go func() {
+		go func(i int) {
 			for node := range queue {
+				log.Printf("worker %d: evaluating node %s", i, node.ID)
 				node.Evaluate()
 			}
 			wait.Done()
-		}()
+		}(i)
 	}
 
 	wait.Wait()

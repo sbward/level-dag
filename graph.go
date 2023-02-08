@@ -2,7 +2,6 @@ package dag
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 )
@@ -44,10 +43,20 @@ type Graph map[string]*Node
 // If one or more Nodes have no path to the rest of the Nodes, ErrDisconnected is returned.
 func New(nodes ...*Node) (Graph, error) {
 	g := Graph(make(map[string]*Node, len(nodes)))
+
+	// Add every Node to the Graph while checking for cycles.
 	for _, node := range nodes {
 		err := node.walkRecursive(func(current *Node, prev []*Node) error {
+			for _, p := range prev {
+				// If the Node was already visited in prev, there is a cycle.
+				if current.ID == p.ID {
+					log.Printf("cycle: node %s is referenced by descendent node %s", p.ID, current.ID)
+					return ErrCycle
+				}
+			}
 			if _, ok := g[current.ID]; ok {
-				return fmt.Errorf("%w: %s", ErrDuplicateNodeID, node.ID)
+				// Node was already recorded, ok to skip.
+				return nil
 			}
 			g[current.ID] = current
 			return nil
@@ -57,9 +66,12 @@ func New(nodes ...*Node) (Graph, error) {
 			return nil, err
 		}
 	}
-	if err := g.Validate(); err != nil {
+
+	// Check connectivity.
+	if err := g.CheckConnectivity(); err != nil {
 		return nil, err
 	}
+
 	return g, nil
 }
 
@@ -72,8 +84,8 @@ var ErrCycle = errors.New("cycle detected")
 // ErrDisconnected is returned when a Node is unreachable from at least one Node in the same Graph.
 var ErrDisconnected = errors.New("disconnected node")
 
-// Validate returns an error if the Graph contains a cycle or is disconnected.
-func (g Graph) Validate() error {
+// CheckConnectivity returns ErrDisconnect if the Graph is disconnected.
+func (g Graph) CheckConnectivity() error {
 	var connected = map[string]map[string]bool{}
 
 	// Initialize a connectivity map that records whether a Node connects to each other Node.
@@ -92,13 +104,8 @@ func (g Graph) Validate() error {
 	}
 
 	// Traverse the Graph depth-first to check for cycles while recording connectivity.
-	err := g.Walk(func(current *Node, prev []*Node) error {
+	g.Walk(func(current *Node, prev []*Node) error {
 		for _, p := range prev {
-			// If the Node was already visited in prev, there is a cycle.
-			if current.ID == p.ID {
-				log.Printf("cycle: node %s is referenced by descendent node %s", p.ID, current.ID)
-				return ErrCycle
-			}
 			// Mark each previously visited Node as connected to this Node and its connections, and vice versa.
 			log.Printf("connected: %s to %s", current.ID, p.ID)
 			connected[current.ID][p.ID] = true
@@ -116,10 +123,6 @@ func (g Graph) Validate() error {
 		}
 		return nil
 	})
-
-	if err != nil {
-		return err
-	}
 
 	reversed := g.Reversed()
 
@@ -183,7 +186,9 @@ func (g Graph) Walk(visit func(current *Node, prev []*Node) error) error {
 }
 
 func (n *Node) walkRecursive(visit func(current *Node, prev []*Node) error, prev []*Node) error {
-	visit(n, prev)
+	if err := visit(n, prev); err != nil {
+		return err
+	}
 	for _, next := range n.Next {
 		if err := next.walkRecursive(visit, append(prev, n)); err != nil {
 			return err

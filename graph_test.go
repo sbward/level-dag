@@ -1,19 +1,43 @@
 package dag
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"testing"
+)
 
-func assignmentGraph() (Graph, error) {
-	sum := NewNode("sum", Sum)
-	max := NewNode("max", Max, sum)
-	min := NewNode("min", Min, sum)
-	return New(
-		NewNode("1", Constant(1), max),
-		NewNode("2", Constant(2), max),
-		NewNode("3", Constant(3), min),
-		NewNode("4", Constant(4), min),
-	)
+var graphTestCases = []struct {
+	Name        string
+	Graph       func() (Graph, error)
+	ExpectError error
+}{
+	{
+		Name: "cycle",
+		Graph: func() (Graph, error) {
+			a, b := NewNode("a", Constant(1)), NewNode("b", Constant(2))
+			a.Next = append(a.Next, b)
+			b.Next = append(b.Next, a)
+			return New(a, b)
+		},
+		ExpectError: ErrCycle,
+	},
+	{
+		Name: "disconnect",
+		Graph: func() (Graph, error) {
+			a, b := NewNode("a", Constant(1)), NewNode("b", Constant(2))
+			return New(a, b)
+		},
+		ExpectError: ErrDisconnected,
+	},
 }
 
 func TestGraph(t *testing.T) {
-
+	for i, test := range graphTestCases {
+		t.Run(fmt.Sprintf("%d_%s", i, test.Name), func(t *testing.T) {
+			_, err := test.Graph()
+			if err != nil && !errors.Is(err, test.ExpectError) {
+				t.Fatalf("unexpected error from calling Graph(): %s", err)
+			}
+		})
+	}
 }

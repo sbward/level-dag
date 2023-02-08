@@ -1,6 +1,7 @@
 package dag
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -48,11 +49,11 @@ func TestTopologicalSort(t *testing.T) {
 	for i, test := range topologicalSortCases {
 		t.Run(fmt.Sprintf("%d_%s", i, test.Name), func(t *testing.T) {
 			graph, err := test.Graph()
-			if err != nil && err != test.ExpectError {
+			if err != nil && !errors.Is(err, test.ExpectError) {
 				t.Fatalf("unexpected error from calling Graph(): %s", err)
 			}
 			sorted, err := graph.TopologicalSort()
-			if err != nil && err != test.ExpectError {
+			if err != nil && !errors.Is(err, test.ExpectError) {
 				t.Fatalf("unexpected error from calling TopologicalSort(): %s", err)
 			}
 
