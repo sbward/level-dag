@@ -7,7 +7,7 @@ Package dag implements types and functions to define, construct, and evaluate a 
 
 ## Usage
 
-To construct a Graph, create Nodes with the NewNode function, then pass the head Nodes to the New function.
+To construct a `Graph`, create `Node` values with the `NewNode` function, then pass the head `Node` values to the `New` function.
 
 ```go
 package main
@@ -26,16 +26,15 @@ func ExampleGraph() (dag.Graph, error) {
 }
 ```
 
-This function will produce the following Graph:
+The above function will produce the following `Graph`:
 
 ![Example Graph](assignment_graph.png?raw=true "Example Graph")
 
 ### Evaluation
 
-To evaluate a Graph, use the Graph.Evaluate() function, while passing in the desired concurrency.
+To evaluate a `Graph`, use the `Graph.Evaluate` function, while passing in the desired concurrency.
 
 ```go
-
 graph, err := ExampleGraph()
 if err != nil {
 	return err
@@ -52,3 +51,11 @@ fmt.Println(graph["max"].Result) // 2
 fmt.Println(graph["min"].Result) // 3
 fmt.Println(graph["sum"].Result) // 5
 ```
+
+## Implementation
+
+Each `Node` of a `Graph` has an `Inputs` channel and a `*sync.WaitGroup` for concurrency control. When constructing `Node` values, downstream `Node` values increase their `*sync.WaitGroup` counter by 1 for each `Node` that will provide an input.
+
+When evaluation is started by invoking `Graph.Evaluate`, the head `Node` values are evaluated first. A worker pool receives `Node` references to process in topological order, ensuring that the `Graph` can be processed to completion by any number of concurrent workers.
+
+During evaluation, each `Node` waits for its parents to complete first by waiting for the `*sync.WaitGroup`. Head nodes have no inputs, so this stage is effectively skipped. The `Input` channel is closed, and then the buffered inputs are processed by the `EvalFunc` of the `Node` to merge the inputs into a single result. Finally the `Node` invokes the `Receive` method on each downsteam Node to send its output to the next Node's `Input` channel, and decreases that Node's `*sync.WaitGroup` counter by 1. This process repeats concurrently across all `Nodes` in topological order until the entire `Graph` has been processed.
